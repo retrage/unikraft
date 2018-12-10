@@ -4,6 +4,7 @@
 #
 ################################################################################
 
+ifneq ($(CONFIG_LIBLKL),y)
 ASFLAGS     += -U __linux__ -U __FreeBSD__ -U __sun__ -D__ASSEMBLY__
 ASINCLUDES  += -nostdinc -nostdlib -I$(CONFIG_UK_BASE)/include
 
@@ -22,6 +23,7 @@ CXXINCLUDES += -nostdinc -nostdlib -I$(CONFIG_UK_BASE)/include
 # Unix style magic numbers, mark the output as OMAGIC.
 LIBLDFLAGS  += -nostdinc -nostdlib -Wl,--omagic -Wl,-r
 LDFLAGS     += -nostdinc -nostdlib -Wl,--omagic -Wl,--build-id=none
+endif
 
 CFLAGS-$(CONFIG_OPTIMIZE_NONE)            += -O0 -fno-optimize-sibling-calls -fno-tree-vectorize
 CXXFLAGS-$(CONFIG_OPTIMIZE_NONE)          += -O0 -fno-optimize-sibling-calls -fno-tree-vectorize
