@@ -12,6 +12,9 @@ config ARCH_ARM_64
        bool "Armv8 compatible (64 bits)"
 config ARCH_ARM_32
        bool "Armv7 compatible (32 bits)"
+config ARCH_LKL
+       bool "Linux Kernel Library (stub)"
+       select PLAT_LKL
 
 endchoice
 
