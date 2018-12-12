@@ -10,8 +10,7 @@ $(LKL_IMAGE): $(LKL_ALIBS) $(LKL_ALIBS-y) \
 	      $(LKL_OLIBS) $(LKL_OLIBS-y) \
 	      $(UK_ALIBS) $(UK_ALIBS-y) $(UK_OLIBS) $(UK_OLIBS-y)
 	$(call build_cmd,LD,,$@,\
-		$(LD) $(LDFLAGS) $(LDFLAGS-y) \
-		$(LKL_LDFLAGS) $(LKL_LDFLAGS-y) \
+		$(LD) $(LKL_LDFLAGS) $(LKL_LDFLAGS-y) \
 		$(UK_OLIBS) $(UK_OLIBS-y) \
 		$(LKL_ALIBS) $(LKL_ALIBS-y) \
 		$(UK_ALIBS) $(UK_ALIBS-y) \

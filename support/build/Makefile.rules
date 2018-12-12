@@ -506,11 +506,16 @@ $(call libname2preolib,$(1)): $($(call vprefix_lib,$(1),OBJS)) \
 		      -o $(call libname2preolib,$(1)))
 
 $(call libname2olib,$(1)): $(call libname2preolib,$(1)) $(if $(wildcard $($(call vprefix_lib,$(1),EXPORTS))),$($(call vprefix_lib,$(1),EXPORTS)),)
+ifeq ($(CONFIG_UK_ARCH),lkl)
+	$(call build_cmd,CP,,$(call libname2olib,$(1)),\
+		$(CP) $(call libname2preolib,$(1)) $(call libname2olib,$(1)))
+else
 	$(call build_cmd,OBJCOPY,,$(call libname2olib,$(1)),\
 		$(OBJCOPY) $(if $(wildcard $($(call vprefix_lib,$(1),EXPORTS))),--keep-global-symbols=$($(call vprefix_lib,$(1),EXPORTS)),) \
 		           $(OBJCFLAGS) $(OBJCFLAGS-y) \
 		           $($(call vprefix_lib,$(1),OBJCFLAGS)) $($(call vprefix_lib,$(1),OBJCFLAGS-y)) \
 			   $(call libname2preolib,$(1)) $(call libname2olib,$(1)))
+endif
 
 $(eval $(call vprefix_lib,$(1),CLEAN-y) += $(call build_clean,$(call libname2preolib,$(1))))
 $(eval $(call vprefix_lib,$(1),CLEAN-y) += $(call build_clean,$(call libname2olib,$(1))))

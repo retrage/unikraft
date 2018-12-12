@@ -406,7 +406,11 @@ AS		:= $(CC)
 AR		:= $(CONFIG_CROSS_COMPILE)gcc-ar
 NM		:= $(CONFIG_CROSS_COMPILE)gcc-nm
 READELF		:= $(CONFIG_CROSS_COMPILE)readelf
+ifeq ($(CONFIG_UK_ARCH),lkl)
+STRIP		:= strip
+else
 STRIP		:= $(CONFIG_CROSS_COMPILE)strip
+endif
 OBJCOPY		:= $(CONFIG_CROSS_COMPILE)objcopy
 OBJDUMP		:= $(CONFIG_CROSS_COMPILE)objdump
 AR		:= ar
