@@ -4,7 +4,7 @@
 #
 ################################################################################
 
-ifneq ($(CONFIG_LIBLKL),y)
+ifneq ($(CONFIG_UK_ARCH),lkl)
 ASFLAGS     += -U __linux__ -U __FreeBSD__ -U __sun__ -D__ASSEMBLY__
 ASINCLUDES  += -nostdinc -nostdlib -I$(CONFIG_UK_BASE)/include
 
