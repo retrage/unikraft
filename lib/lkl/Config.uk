@@ -1,6 +1,5 @@
 menuconfig LIBLKL
 	bool "lkl: Linux Kernel Library"
-	select HAVE_BOOTENTRY
 
 if LIBLKL
 endif
