@@ -41,5 +41,6 @@ if !LIBLKL
         source "lib/ukbus/Config.uk"
         source "lib/uksglist/Config.uk"
         source "lib/uknetdev/Config.uk"
+else
+        source "lib/lkl/Config.uk"
 endif
-source "lib/lkl/Config.uk"
