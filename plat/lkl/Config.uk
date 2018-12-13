@@ -1,7 +1,0 @@
-menuconfig PLAT_LKL
-	bool "Stub platform for Linux Kernel Library"
-	default n
-	depends on ARCH_LKL
-	select LIBLKL
-	help
-                Create a LKL static image

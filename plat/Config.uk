@@ -1,7 +1,6 @@
 source "plat/xen/Config.uk"
 source "plat/kvm/Config.uk"
 source "plat/linuxu/Config.uk"
-source "plat/lkl/Config.uk"
 
 menu "Platform Interface Options"
 config UKPLAT_MEMRNAME

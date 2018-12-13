@@ -4,7 +4,6 @@
 #
 ################################################################################
 
-ifneq ($(CONFIG_UK_ARCH),lkl)
 ASFLAGS     += -U __linux__ -U __FreeBSD__ -U __sun__ -D__ASSEMBLY__
 ASINCLUDES  += -nostdinc -nostdlib -I$(CONFIG_UK_BASE)/include
 
@@ -17,7 +16,6 @@ CXXFLAGS    += -U __linux__ -U __FreeBSD__ -U __sun__
 CXXFLAGS    += -fno-stack-protector -fno-omit-frame-pointer -fno-tree-sra
 CXXFLAGS    += -Wall -Wextra
 CXXINCLUDES += -nostdinc -nostdlib -I$(CONFIG_UK_BASE)/include
-endif
 
 # Set the text and data sections to be readable and writable. Also,
 # do not page-align the data segment. If the output format supports
