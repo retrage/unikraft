@@ -1,0 +1,7 @@
+menuconfig PLAT_LKL
+       bool "Stub platform for Linux Kernel Library"
+       default n
+       depends on ARCH_X86_64
+       select LIBLKL
+       help
+                Stub platform for Linux Kernel Library
