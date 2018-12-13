@@ -1,1 +1,18 @@
 $(eval $(call addlib_s,liblkl,$(CONFIG_LIBLKL)))
+
+ifeq ($(BUILD_VERBOSE),1)
+  $(eval LKL_VERBOSE := "V=1")
+else
+  $(eval LKL_VERBOSE := "V=0")
+endif
+$(eval LKL_SRCDIR := $(LIBLKL_BASE)/linux)
+$(eval LKL_BUILD := $(LIBLKL_BUILD)/linux)
+
+$(LIBLKL_BUILD)/liblkl.a:
+	mkdir -p $(LKL_BUILD)
+	$(MAKE) -C $(LKL_SRCDIR)/tools/lkl \
+	  CROSSCOMPILE=$(CONFIG_CROSS_COMPILE) \
+	  $(LKL_VERBOSE) O=$(LKL_BUILD)
+	cp $(LKL_BUILD)/tools/lkl/liblkl.a $(LIBLKL_BUILD)/liblkl.a
+
+$(eval UK_ALIBS-y += $(LIBLKL_BUILD)/liblkl.a)
