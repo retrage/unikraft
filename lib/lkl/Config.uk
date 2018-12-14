@@ -1,5 +1,6 @@
 menuconfig LIBLKL
 	bool "lkl: Linux Kernel Library"
+	default no
 
 if LIBLKL
 endif
