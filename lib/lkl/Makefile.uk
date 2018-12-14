@@ -13,6 +13,17 @@ $(LIBLKL_BUILD)/liblkl.a:
 	$(MAKE) -C $(LKL_SRCDIR)/tools/lkl \
 	  CROSSCOMPILE=$(CONFIG_CROSS_COMPILE) \
 	  $(LKL_VERBOSE) O=$(LKL_BUILD)
+	# install to $(LKL_BUILD)/tools/lkl/usr
+	$(MAKE) -C $(LKL_SRCDIR)/tools/lkl \
+	  headers_install \
+	  CROSSCOMPILE=$(CONFIG_CROSS_COMPILE) \
+	  DESTDIR=$(LKL_BUILD)/tools/lkl PREFIX=/usr \
+	  $(LKL_VERBOSE) O=$(LKL_BUILD)
+	mkdir -p $(LKL_BUILD)/tools/lkl/usr/include/sys
+	echo "/* nop */" > $(LKL_BUILD)/tools/lkl/usr/include/sys/socket.h
 	cp $(LKL_BUILD)/tools/lkl/liblkl.a $(LIBLKL_BUILD)/liblkl.a
 
 $(eval UK_ALIBS-y += $(LIBLKL_BUILD)/liblkl.a)
+
+CINCLUDES-$(CONFIG_LIBLKL)	+= -I$(LIBLKL_BUILD)/linux/tools/lkl/usr/include
+CXXINCLUDES-$(CONFIG_LIBLKL)	+= -I$(LIBLKL_BUILD)/linux/tools/lkl/usr/include
