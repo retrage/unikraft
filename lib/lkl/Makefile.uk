@@ -5,25 +5,46 @@ ifeq ($(BUILD_VERBOSE),1)
 else
   $(eval LKL_VERBOSE := "V=0")
 endif
-$(eval LKL_SRCDIR := $(LIBLKL_BASE)/linux)
-$(eval LKL_BUILD := $(LIBLKL_BUILD)/linux)
+$(eval LKL_SRCDIR := $(LIBLKL_BASE)/linux/tools/lkl)
+$(eval LKL_OUTPUT := $(LIBLKL_BUILD)/linux)
 
-$(LIBLKL_BUILD)/liblkl.a:
-	mkdir -p $(LKL_BUILD)
-	$(MAKE) -C $(LKL_SRCDIR)/tools/lkl \
+$(LIBLKL_BUILD)/lkl.o:
+	mkdir -p $(LKL_OUTPUT)/tools/lkl
+	$(MAKE) -C $(LKL_SRCDIR) \
+	  $(LKL_OUTPUT)/tools/lkl/lib/lkl.o \
 	  CROSSCOMPILE=$(CONFIG_CROSS_COMPILE) \
-	  $(LKL_VERBOSE) O=$(LKL_BUILD)
-	# install to $(LKL_BUILD)/tools/lkl/usr
-	$(MAKE) -C $(LKL_SRCDIR)/tools/lkl \
-	  headers_install \
-	  CROSSCOMPILE=$(CONFIG_CROSS_COMPILE) \
-	  DESTDIR=$(LKL_BUILD)/tools/lkl PREFIX=/usr \
-	  $(LKL_VERBOSE) O=$(LKL_BUILD)
-	mkdir -p $(LKL_BUILD)/tools/lkl/usr/include/sys
-	echo "/* nop */" > $(LKL_BUILD)/tools/lkl/usr/include/sys/socket.h
-	cp $(LKL_BUILD)/tools/lkl/liblkl.a $(LIBLKL_BUILD)/liblkl.a
+	  $(LKL_VERBOSE) \
+	  OUTPUT=$(LKL_OUTPUT)/tools/lkl/ \
+	  O=$(LKL_OUTPUT)/
+	cp $(LKL_OUTPUT)/tools/lkl/lib/lkl.o $(LIBLKL_BUILD)/lkl.o
 
-$(eval UK_ALIBS-$(CONFIG_LIBLKL) += $(LIBLKL_BUILD)/liblkl.a)
+$(eval LIBLKL_OBJS-$(CONFIG_LIBLKL) += $(LIBLKL_BUILD)/lkl.o)
 
-CINCLUDES-$(CONFIG_LIBLKL)	+= -I$(LIBLKL_BUILD)/linux/tools/lkl/usr/include
-CXXINCLUDES-$(CONFIG_LIBLKL)	+= -I$(LIBLKL_BUILD)/linux/tools/lkl/usr/include
+CINCLUDES-$(CONFIG_LIBLKL)	+= -I$(LKL_SRCDIR)/include
+CINCLUDES-$(CONFIG_PLAT_LINUXU)	+= -I$(LIBLINUXUPLAT_BASE)/include
+CINCLUDES-$(CONFIG_PLAT_LINUXU)	+= -I$(UK_PLAT_COMMON_BASE)/include
+
+LIBLKL_CFLAGS-y += -D__FIBER__
+
+# LIBLKL_SRCS-y += $(LKL_SRCDIR)/lib/config.c
+LIBLKL_SRCS-y += $(LKL_SRCDIR)/lib/dbg.c
+LIBLKL_SRCS-y += $(LKL_SRCDIR)/lib/dbg_handler.c
+LIBLKL_SRCS-y += $(LKL_SRCDIR)/lib/fs.c
+LIBLKL_SRCS-y += $(LKL_SRCDIR)/lib/iomem.c
+LIBLKL_SRCS-y += $(LKL_SRCDIR)/lib/jmp_buf.c
+LIBLKL_SRCS-y += $(LKL_SRCDIR)/lib/net.c
+LIBLKL_SRCS-y += $(LKL_SRCDIR)/lib/uk-host.c
+LIBLKL_SRCS-y += $(LKL_SRCDIR)/lib/utils.c
+LIBLKL_SRCS-y += $(LKL_SRCDIR)/lib/virtio.c
+# LIBLKL_SRCS-y += $(LKL_SRCDIR)/../perf/pmu-events/jsmn.c
+LIBLKL_SRCS-y += $(LKL_SRCDIR)/lib/lk/arch_asm.S
+LIBLKL_SRCS-y += $(LKL_SRCDIR)/lib/lk/arch_fpu.c
+LIBLKL_SRCS-y += $(LKL_SRCDIR)/lib/lk/arch_thread.c
+LIBLKL_SRCS-y += $(LKL_SRCDIR)/lib/lk/debug.c
+LIBLKL_SRCS-y += $(LKL_SRCDIR)/lib/lk/heap.c
+LIBLKL_SRCS-y += $(LKL_SRCDIR)/lib/lk/kernel/event.c
+LIBLKL_SRCS-y += $(LKL_SRCDIR)/lib/lk/kernel/mutex.c
+LIBLKL_SRCS-y += $(LKL_SRCDIR)/lib/lk/kernel/semaphore.c
+LIBLKL_SRCS-y += $(LKL_SRCDIR)/lib/lk/kernel/thread.c
+LIBLKL_SRCS-y += $(LKL_SRCDIR)/lib/lk/kernel/timer.c
+LIBLKL_SRCS-y += $(LKL_SRCDIR)/lib/lk/platform/posix/posix-timer.c
