@@ -92,3 +92,4 @@ virtio_get_num_bootdevs
 virtio_process_queue
 virtio_req_complete
 virtio_set_queue_max_merge_len
+lkl_thread_init
