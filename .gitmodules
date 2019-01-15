@@ -1,3 +1,0 @@
-[submodule "lib/lkl/linux"]
-	path = lib/lkl/linux
-	url = git@github.com:retrage/linux.git
