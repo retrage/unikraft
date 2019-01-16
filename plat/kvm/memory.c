@@ -32,13 +32,20 @@ extern void *_libkvmplat_mem_end;
 
 int ukplat_memregion_count(void)
 {
+#if CONFIG_LIBLKL
+	return 8;
+#else
 	return 7;
+#endif
 }
 
 int ukplat_memregion_get(int i, struct ukplat_memregion_desc *m)
 {
 	extern char _text, _etext, _data, _edata, _rodata, _erodata,
 		    _ctors, _ectors, __bss_start, _end;
+#if CONFIG_LIBLKL
+	extern char _sinittext, _einittext;
+#endif
 	int ret;
 
 	UK_ASSERT(m);
@@ -118,6 +125,19 @@ int ukplat_memregion_get(int i, struct ukplat_memregion_desc *m)
 		m->name  = "bstack";
 #endif
 		break;
+#if CONFIG_LIBLKL
+	case 7: /* .init.text */
+		m->base  = &_sinittext;
+		m->len   = (size_t) &_einittext
+			   - (size_t) &_sinittext;
+		m->flags = (UKPLAT_MEMRF_RESERVED
+			    | UKPLAT_MEMRF_READABLE);
+		ret = 0;
+#if CONFIG_UKPLAT_MEMRNAME
+		m->name  = ".init.text";
+#endif
+		break;
+#endif
 	default:
 		m->base  = __NULL;
 		m->len   = 0;
