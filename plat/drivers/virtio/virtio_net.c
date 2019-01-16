@@ -79,12 +79,12 @@ typedef enum {
 } virtq_type_t;
 
 /**
- * When mergeable buffers are not negotiated, the vtnet_rx_header structure
+ * When mergeable buffers are not negotiated, the virtio_net_hdr_padded struct
  * below is placed at the beginning of the netbuf data. Use 4 bytes of pad to
  * both keep the VirtIO header and the data non-contiguous and to keep the
  * frame's payload 4 byte aligned.
  */
-struct virtio_net_rx_hdr {
+struct virtio_net_hdr_padded {
 	struct virtio_net_hdr vhdr;
 	char            vrh_pad[VTNET_RX_HEADER_PAD];
 };
@@ -306,9 +306,12 @@ static int virtio_netdev_xmit(struct uk_netdev *dev,
 {
 	struct virtio_net_device *vndev __unused;
 	struct virtio_net_hdr *vhdr;
-	int16_t header_sz = sizeof(*vhdr);
+	struct virtio_net_hdr_padded *padded_hdr;
+	int16_t header_sz = sizeof(*padded_hdr);
 	int rc = 0;
 	size_t total_len = 0;
+	__u8  *buf_start;
+	size_t buf_len;
 
 	UK_ASSERT(dev);
 	UK_ASSERT(pkt && queue);
@@ -321,6 +324,8 @@ static int virtio_netdev_xmit(struct uk_netdev *dev,
 	 */
 	virtio_netdev_xmit_free(queue);
 
+	buf_start = pkt->data;
+	buf_len = pkt->len;
 	/**
 	 * Use the preallocated header space for the virtio header.
 	 */
@@ -336,7 +341,7 @@ static int virtio_netdev_xmit(struct uk_netdev *dev,
 	 * Fill the virtio-net-header with the necessary information.
 	 * Zero explicitly set.
 	 */
-	vhdr->flags = 0;
+	memset(vhdr, 0, sizeof(*vhdr));
 	vhdr->gso_type = VIRTIO_NET_HDR_GSO_NONE;
 
 	/**
@@ -352,13 +357,12 @@ static int virtio_netdev_xmit(struct uk_netdev *dev,
 	 * 1 for the virtio header and the other for the actual network packet.
 	 */
 	/* Appending the data to the list. */
-	rc = uk_sglist_append(&queue->sg, vhdr, header_sz);
+	rc = uk_sglist_append(&queue->sg, vhdr, sizeof(*vhdr));
 	if (unlikely(rc != 0)) {
 		uk_pr_err("Failed to append to the sg list\n");
 		goto exit;
 	}
-	rc = uk_sglist_append(&queue->sg, pkt->data + header_sz,
-			(pkt->len - header_sz));
+	rc = uk_sglist_append(&queue->sg, buf_start, buf_len);
 	if (unlikely(rc != 0)) {
 		uk_pr_err("Failed to append to the sg list\n");
 		goto exit;
@@ -375,7 +379,8 @@ static int virtio_netdev_xmit(struct uk_netdev *dev,
 	if (unlikely(total_len > VIRTIO_PKT_BUFFER_LEN)) {
 		uk_pr_err("Packet size too big: %lu, max:%u\n",
 			  total_len, VIRTIO_PKT_BUFFER_LEN);
-		return -ENOTSUP;
+		rc = -ENOTSUP;
+		goto remove_vhdr;
 	}
 
 	/**
@@ -396,20 +401,26 @@ static int virtio_netdev_xmit(struct uk_netdev *dev,
 	} else if (rc == -ENOSPC) {
 		uk_pr_debug("No more descriptor available\n");
 		rc = 0;
+		goto remove_vhdr;
 	} else {
 		uk_pr_err("Failed to enqueue descriptors into the ring: %d\n",
 			  rc);
+		goto remove_vhdr;
 	}
 
 exit:
 	return rc;
+
+remove_vhdr:
+	uk_netbuf_header(pkt, -header_sz);
+	goto exit;
 }
 
 static int virtio_netdev_rxq_enqueue(struct uk_netdev_rx_queue *rxq,
 				     struct uk_netbuf *netbuf)
 {
 	int rc = 0;
-	struct virtio_net_rx_hdr *rxhdr;
+	struct virtio_net_hdr_padded *rxhdr;
 	int16_t header_sz = sizeof(*rxhdr);
 	__u8 *buf_start;
 	size_t buf_len = 0;
@@ -478,7 +489,7 @@ static int virtio_netdev_rxq_dequeue(struct uk_netdev_rx_queue *rxq,
 	 */
 	buf->len = len + VTNET_RX_HEADER_PAD;
 	rc = uk_netbuf_header(buf,
-			      -((int16_t)sizeof(struct virtio_net_rx_hdr)));
+			      -((int16_t)sizeof(struct virtio_net_hdr_padded)));
 	UK_ASSERT(rc == 1);
 	*netbuf = buf;
 
@@ -628,6 +639,9 @@ static int virtio_netdev_vqueue_setup(struct virtio_net_device *vndev,
 			  max_desc, nr_desc);
 		return -ENOBUFS;
 	}
+
+	nr_desc = (nr_desc != 0) ? nr_desc : max_desc;
+	uk_pr_debug("Configuring the %d descriptors\n", nr_desc);
 
 	/* Check if the descriptor is a power of 2 */
 	if (unlikely(nr_desc & (nr_desc - 1))) {
@@ -990,8 +1004,8 @@ static void virtio_net_info_get(struct uk_netdev *dev,
 
 	dev_info->max_rx_queues = vndev->max_vqueue_pairs;
 	dev_info->max_tx_queues = vndev->max_vqueue_pairs;
-	dev_info->nb_encap_tx = sizeof(struct virtio_net_hdr);
-	dev_info->nb_encap_rx = sizeof(struct virtio_net_rx_hdr);
+	dev_info->nb_encap_tx = sizeof(struct virtio_net_hdr_padded);
+	dev_info->nb_encap_rx = sizeof(struct virtio_net_hdr_padded);
 }
 
 static int virtio_net_start(struct uk_netdev *n)
@@ -1060,7 +1074,7 @@ static int virtio_net_add_dev(struct virtio_dev *vdev)
 
 	UK_ASSERT(vdev != NULL);
 
-	vndev = uk_malloc(a, sizeof(*vndev));
+	vndev = uk_calloc(a, 1, sizeof(*vndev));
 	if (!vndev) {
 		rc = -ENOMEM;
 		goto err_out;
