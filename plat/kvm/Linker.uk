@@ -1,5 +1,9 @@
 ifeq (x86_64,$(CONFIG_UK_ARCH))
+ifeq ($(CONFIG_LIBLKL),y)
+KVM_LDSCRIPT  := $(CONFIG_UK_BASE)/plat/kvm/x86/lkllink64.lds
+else
 KVM_LDSCRIPT  := $(CONFIG_UK_BASE)/plat/kvm/x86/link64.lds
+endif
 KVM_LDFLAGS-y += -Wl,-m,elf_x86_64
 else ifeq (arm64,$(CONFIG_UK_ARCH))
 KVM_LDSCRIPT_SRC := $(CONFIG_UK_BASE)/plat/kvm/arm/link64.lds.S
