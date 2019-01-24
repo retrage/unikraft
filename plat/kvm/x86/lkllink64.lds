@@ -38,8 +38,6 @@ SECTIONS
 
 		*(.text)
 		*(.text.*)
-		*(.init.text)
-		*(.init.text.*)
 	}
 	_etext = .;
 
@@ -50,7 +48,6 @@ SECTIONS
 	{
 		*(.rodata)
 		*(.rodata.*)
-		KEEP (*(__param))
 		KEEP (*(__modver))
 	}
 	_erodata = .;
@@ -81,7 +78,6 @@ SECTIONS
 		*(.data)
 		*(.data.*)
 		*(.init.data)
-		*(.init.data.*)
 	}
 	_edata = .;
 
