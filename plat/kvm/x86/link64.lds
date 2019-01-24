@@ -48,6 +48,7 @@ SECTIONS
 	{
 		*(.rodata)
 		*(.rodata.*)
+		KEEP (*(__modver))
 	}
 	_erodata = .;
 
@@ -76,6 +77,7 @@ SECTIONS
 	{
 		*(.data)
 		*(.data.*)
+		*(.init.data)
 	}
 	_edata = .;
 
