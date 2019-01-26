@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 /*
- * Authors: Costin Lupu <costin.lupu@cs.pub.ro>
+ * Authors: Florian Schmidt <florian.schmidt@neclab.eu>
  *
  * Copyright (c) 2018, NEC Europe Ltd., NEC Corporation. All rights reserved.
  *
@@ -31,30 +31,7 @@
  *
  * THIS HEADER MAY NOT BE EXTRACTED OR MODIFIED IN ANY WAY.
  */
-#ifndef __PLAT_CMN_SW_CTX_H__
-#define __PLAT_CMN_SW_CTX_H__
 
-#ifndef __ASSEMBLY__
-#include <stdint.h>
-#include <uk/plat/thread.h>
+#include <x86/cpu.h>
 
-struct sw_ctx {
-	unsigned long sp;	/* Stack pointer */
-	unsigned long ip;	/* Instruction pointer */
-	uintptr_t extregs;	/* Pointer to an area to which extended
-				 * registers are saved on context switch.
-				 */
-};
-
-void sw_ctx_callbacks_init(struct ukplat_ctx_callbacks *ctx_cbs);
-#endif
-
-#define OFFSETOF_SW_CTX_SP      0
-#define OFFSETOF_SW_CTX_IP      8
-
-#define SIZEOF_SW_CTX           8
-
-/* TODO This should be better defined in the thread header */
-#define OFFSETOF_UKTHREAD_SW_CTX  16
-
-#endif /* __PLAT_CMN_SW_CTX_H__ */
+struct _x86_features x86_cpu_features;

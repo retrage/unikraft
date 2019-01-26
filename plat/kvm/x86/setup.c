@@ -27,6 +27,7 @@
  */
 
 #include <string.h>
+#include <x86/cpu.h>
 #include <x86/traps.h>
 #include <kvm/console.h>
 #include <kvm/intctrl.h>
@@ -109,20 +110,6 @@ static inline void _mb_init_mem(struct multiboot_info *mi)
 	_libkvmplat_stack_top  = (void *) (max_addr - __STACK_SIZE);
 }
 
-static inline void _init_cpufeatures(void)
-{
-#if __SSE__
-	unsigned long sse_status = 0x1f80;
-#endif
-
-	/* FPU */
-	asm volatile("fninit");
-
-#if __SSE__
-	asm volatile("ldmxcsr %0" : : "m"(sse_status));
-#endif
-}
-
 static void _libkvmplat_entry2(void *arg __attribute__((unused)))
 {
 	ukplat_entry_argp(NULL, cmdline, sizeof(cmdline));
@@ -132,8 +119,8 @@ void _libkvmplat_entry(void *arg)
 {
 	struct multiboot_info *mi = (struct multiboot_info *)arg;
 
-	_libkvmplat_init_console();
 	_init_cpufeatures();
+	_libkvmplat_init_console();
 	traps_init();
 	intctrl_init();
 

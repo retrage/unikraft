@@ -74,6 +74,7 @@
 #include <uk/plat/config.h>
 #include <uk/plat/console.h>
 #include <uk/plat/bootstrap.h>
+#include <x86/cpu.h>
 
 #include <xen/xen.h>
 #include <common/console.h>
@@ -111,20 +112,6 @@ struct ukplat_memregion_desc _libxenplat_mrd[UKPLAT_MEMRD_MAX_ENTRIES];
 static inline void _init_traps(void)
 {
 	traps_init();
-}
-
-static inline void _init_cpufeatures(void)
-{
-#if __SSE__
-	unsigned long sse_status = 0x1f80;
-#endif
-
-	/* FPU */
-	asm volatile("fninit");
-
-#if __SSE__
-	asm volatile("ldmxcsr %0" : : "m"(sse_status));
-#endif
 }
 
 static inline void _init_shared_info(void)
