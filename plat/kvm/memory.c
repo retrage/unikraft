@@ -32,7 +32,7 @@ extern void *_libkvmplat_mem_end;
 
 int ukplat_memregion_count(void)
 {
-        return 7;
+	return 7;
 }
 
 int ukplat_memregion_get(int i, struct ukplat_memregion_desc *m)
