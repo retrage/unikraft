@@ -215,7 +215,10 @@ int uk_netdev_rxq_info_get(struct uk_netdev *dev, uint16_t queue_id,
  *   value.
  * @param rx_conf
  *   The pointer to the configuration data to be used for the receive queue.
- *   Its memory can be released after invoking this function.
+ *   Its memory can be released after invoking this function. Please note that
+ *   the receive buffer allocator (`rx_conf->alloc_rxpkts`) has to be
+ *   interrupt-context-safe when `uk_netdev_rx_one` is going to be called from
+ *   interrupt context.
  * @return
  *   - (0): Success, receive queue correctly set up.
  *   - (-ENOMEM): Unable to allocate the receive ring descriptors.
@@ -419,9 +422,17 @@ static inline int uk_netdev_rxq_intr_disable(struct uk_netdev *dev,
 }
 
 /**
- * Receive one packet and re-program used receive descriptor
- * Please note that before any packet can be received, the receive queue
- * has to be filled up with empty netbufs (see fillup parameter).
+ * Receive one packet and re-program used receive descriptors. In order to avoid
+ * race conditions, queue interrupts have to be off while executing this
+ * function. When operating the queue in interrupt mode, this is automatically
+ * the case as soon as an interrupt arrived or the return code of
+ * uk_netdev_rxq_intr_enable() indicated that packets are left on the queue.
+ * In both cases, uk_netdev_rx_one() is going to enable interrupts again as soon
+ * as the last packet was received from the queue.
+ * If this function is called from interrupt context (e.g., within receive event
+ * handler when no dispatcher threads are configured) make sure that the
+ * provided receive buffer allocator function is interrupt-context-safe
+ * (see: `uk_netdev_rxq_configure`).
  *
  * @param dev
  *   The Unikraft Network Device.
@@ -431,50 +442,33 @@ static inline int uk_netdev_rxq_intr_disable(struct uk_netdev *dev,
  *   to uk_netdev_configure().
  * @param pkt
  *   Reference to netbuf pointer which will be point to the received packet
- *   after the function call. Can be NULL if function is used to program
- *   receive descriptors only.
- * @param fillup
- *   Array of netbufs that should be used to program used descriptors again.
- *   Each of the netbuf should be freshly allocated/initialized and not part
- *   of any chain.
- *   `fillup` can be `NULL` but without re-programming of used descriptors no
- *   new packets can be received at some point.
- * @param fillup_count
- *   Length of `fillup` array. After the function call, `fillup_count` returns
- *   the number of left and unused netbufs on the array. `fillup_count` has to
- *   to 0 if `fillup` is `NULL`.
+ *   after the function call. `pkt` has never to be `NULL`.
  * @return
- *   - (0): No packet available or `pkt` was set to NULL,
- *          check `fillup_count` for used `fillup` netbufs
- *   - (1): `pkt` points to received netbuf,
- *          check `fillup_count` for used `fillup` netbufs
- *   - (2): `pkt` points to received netbuf but more received packets are
- *          available on the receive queue. When interrupts are used, they are
- *          disabled until 1 is returned on subsequent calls,
- *          check `fillup_count` for used `fillup` netbufs
- *   - (<0): Error code from driver
+ *   - (>=0): Positive value with status flags
+ *     - UK_NETDEV_STATUS_SUCCESS: `pkt` points to received netbuf. Whenever
+ *        this flag is not set, there was no packet received.
+ *     - UK_NETDEV_STATUS_MORE: Indicates that more received packets are
+ *        available on the receive queue. When interrupts are used, they are
+ *        disabled until this flag is unset by a subsequent call.
+ *        This flag may only be set together with UK_NETDEV_STATUS_SUCCESS.
+ *     - UK_NETDEV_STATUS_UNDERRUN: Informs that some available slots of the
+ *        receive queue could not be programmed with a receive buffer. The
+ *        user-provided receive buffer allocator function returned with an error
+ *        (e.g., out of memory).
+ *   - (<0): Negative value with error code from driver, no packet is returned.
  */
 static inline int uk_netdev_rx_one(struct uk_netdev *dev, uint16_t queue_id,
-				   struct uk_netbuf **pkt,
-				   struct uk_netbuf *fillup[],
-				   uint16_t *fillup_count)
+				   struct uk_netbuf **pkt)
 {
 	UK_ASSERT(dev);
 	UK_ASSERT(dev->rx_one);
 	UK_ASSERT(queue_id < CONFIG_LIBUKNETDEV_MAXNBQUEUES);
 	UK_ASSERT(dev->_data->state == UK_NETDEV_RUNNING);
 	UK_ASSERT(!PTRISERR(dev->_rx_queue[queue_id]));
-	UK_ASSERT((!fillup && fillup_count) || fillup);
+	UK_ASSERT(pkt);
 
-	return dev->rx_one(dev, dev->_rx_queue[queue_id], pkt,
-			   fillup, fillup_count);
+	return dev->rx_one(dev, dev->_rx_queue[queue_id], pkt);
 }
-
-/**
- * Shortcut for only filling up a receive queue with empty netbufs
- */
-#define uk_netdev_rx_fillup(dev, queue_id, fillup, fillup_count)	\
-	uk_netdev_rx_one((dev), (queue_id), NULL, (fillup), (fillup_count))
 
 /**
  * Transmit one packet
@@ -492,13 +486,15 @@ static inline int uk_netdev_rx_one(struct uk_netdev *dev, uint16_t queue_id,
  *   for doing a transmission - inspect `nb_encap` with uk_netdev_info_get().
  *   `pkt` has never to be `NULL`.
  * @return
- *   - (0): No space left on transmit queue, `pkt` is not sent
- *   - (1): `pkt` was successfully put to the transmit queue,
- *          queue is currently full
- *   - (2): `pkt` was successfully put to the transmit queue,
- *          there is still at least one descriptor available for a
- *          subsequent transmission
- *   - (<0): Error code from driver, `pkt` is not sent
+ *   - (>=0): Positive value with status flags
+ *     - UK_NETDEV_STATUS_SUCCESS: `pkt` was successfully put to the transmit
+ *        queue. Whenever this flag is not set, there was no space left on the
+ *        transmit queue to send `pkt`.
+ *     - UK_NETDEV_STATUS_MORE: Indicates there is still at least one descriptor
+ *         available for a subsequent transmission. If the flag is unset means
+ *         that the transmit queue is full.
+ *         This flag may only be set together with UK_NETDEV_STATUS_SUCCESS.
+ *   - (<0): Negative value with error code from driver, no packet was sent.
  */
 static inline int uk_netdev_tx_one(struct uk_netdev *dev, uint16_t queue_id,
 				   struct uk_netbuf *pkt)
@@ -512,6 +508,79 @@ static inline int uk_netdev_tx_one(struct uk_netdev *dev, uint16_t queue_id,
 
 	return dev->tx_one(dev, dev->_tx_queue[queue_id], pkt);
 }
+
+/**
+ * Tests for status flags returned by `uk_netdev_rx_one` or `uk_netdev_tx_one`.
+ * When the functions returned an error code or one of the selected flags is
+ * unset, this macro returns False.
+ *
+ * @param status
+ *   Return status (int)
+ * @param flag
+ *   Flag(s) to test
+ * @return
+ *   - (True):  All flags are set and status is not negative
+ *   - (False): At least one flag is not set or status is negative
+ */
+#define uk_netdev_status_test_set(status, flag)			\
+	(((int)(status) & ((int)(flag) | INT_MIN)) == (flag))
+
+/**
+ * Tests for unset status flags returned by `uk_netdev_rx_one` or
+ * `uk_netdev_tx_one`. When the functions returned an error code or one of the
+ * selected flags is set, this macro returns False.
+ *
+ * @param status
+ *   Return status (int)
+ * @param flag
+ *   Flag(s) to test
+ * @return
+ *   - (True):  Flags are not set and status is not negative
+ *   - (False): At least one flag is set or status is negative
+ */
+#define uk_netdev_status_test_unset(status, flag)			\
+	(((int)(status) & ((int)(flag) | INT_MIN)) == (0x0))
+
+/**
+ * Tests if the return status of `uk_netdev_rx_one` or `uk_netdev_tx_one`
+ * indicates a successful operation (e.g., packet sent or received).
+ *
+ * @param status
+ *   Return status (int)
+ * @return
+ *   - (True):  Operation was successful
+ *   - (False): Operation was unsuccessful or error happened
+ */
+#define uk_netdev_status_successful(status)			\
+	uk_netdev_status_test_set((status), UK_NETDEV_STATUS_SUCCESS)
+
+/**
+ * Tests if the return status of `uk_netdev_rx_one` or `uk_netdev_tx_one`
+ * indicates that the operation should be retried (e.g., packet sent or
+ * received).
+ *
+ * @param status
+ *   Return status (int)
+ * @return
+ *   - (True):  Operation should be retried
+ *   - (False): Operation was successful or error happened
+ */
+#define uk_netdev_status_notready(status)				\
+	uk_netdev_status_test_unset((status), UK_NETDEV_STATUS_SUCCESS)
+
+/**
+ * Tests if the return status of `uk_netdev_rx_one` or `uk_netdev_tx_one`
+ * indicates that the last operation can be successfully repeatet again.
+ *
+ * @param status
+ *   Return status (int)
+ * @return
+ *   - (True):  Flag UK_NETDEV_STATUS_MORE is set
+ *   - (False): Operation was successful or error happened
+ */
+#define uk_netdev_status_more(status)					\
+	uk_netdev_status_test_set((status), (UK_NETDEV_STATUS_SUCCESS	\
+					     | UK_NETDEV_STATUS_MORE))
 
 #ifdef __cplusplus
 }

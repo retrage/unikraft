@@ -58,9 +58,12 @@ struct uk_mutex {
 	struct uk_waitq wait;
 };
 
+#define	UK_MUTEX_INITIALIZER(name)				\
+	{ 0, __WAIT_QUEUE_INITIALIZER((name).wait) }
+
 void uk_mutex_init(struct uk_mutex *m);
 
-static inline void uk_mutex_hold(struct uk_mutex *m)
+static inline void uk_mutex_lock(struct uk_mutex *m)
 {
 	unsigned long irqf;
 
@@ -77,7 +80,7 @@ static inline void uk_mutex_hold(struct uk_mutex *m)
 	ukplat_lcpu_restore_irqf(irqf);
 }
 
-static inline int uk_mutex_hold_try(struct uk_mutex *m)
+static inline int uk_mutex_trylock(struct uk_mutex *m)
 {
 	unsigned long irqf;
 	int ret = 0;
@@ -91,7 +94,12 @@ static inline int uk_mutex_hold_try(struct uk_mutex *m)
 	return ret;
 }
 
-static inline void uk_mutex_release(struct uk_mutex *m)
+static inline int uk_mutex_is_locked(struct uk_mutex *m)
+{
+	return m->locked;
+}
+
+static inline void uk_mutex_unlock(struct uk_mutex *m)
 {
 	unsigned long irqf;
 

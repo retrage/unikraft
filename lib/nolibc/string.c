@@ -93,6 +93,17 @@ void *memchr(const void *ptr, int val, size_t len)
 	return NULL; /* did not find val */
 }
 
+void *memrchr(const void *m, int c, size_t n)
+{
+	const unsigned char *s = m;
+
+	c = (unsigned char) c;
+	while (n--)
+		if (s[n] == c)
+			return (void *) (s + n);
+	return 0;
+}
+
 void *memmove(void *dst, const void *src, size_t len)
 {
 	uint8_t *d = dst;
@@ -132,7 +143,8 @@ size_t strlen(const char *str)
 
 size_t strnlen(const char *str, size_t len)
 {
-	return (size_t)((uintptr_t)memchr(str, '\0', len) - (uintptr_t)str);
+	const char *p = memchr(str, 0, len);
+	return p ? (size_t) (p - str) : len;
 }
 
 char *strncpy(char *dst, const char *src, size_t len)
@@ -213,6 +225,11 @@ char *strchr(const char *str, int c)
 	return *(unsigned char *)r == (unsigned char)c ? r : 0;
 }
 
+char *strrchr(const char *s, int c)
+{
+	return memrchr(s, c, strlen(s) + 1);
+}
+
 size_t strcspn(const char *s, const char *c)
 {
 	const char *a = s;
@@ -285,4 +302,46 @@ char *strndup(const char *str, size_t len)
 char *strdup(const char *str)
 {
 	return strndup(str, SIZE_MAX);
+}
+
+/* strlcpy has different ALIGN */
+#undef ALIGN
+#define ALIGN (sizeof(size_t)-1)
+size_t strlcpy(char *d, const char *s, size_t n)
+{
+	char *d0 = d;
+	size_t *wd;
+	const size_t *ws;
+
+	if (!n--)
+		goto finish;
+
+	if (((uintptr_t)s & ALIGN) == ((uintptr_t)d & ALIGN)) {
+		for (; ((uintptr_t) s & ALIGN) && n && (*d = *s);
+		     n--, s++, d++)
+			;
+
+		if (n && *s) {
+			wd = (void *)d; ws = (const void *)s;
+			for (; n >= sizeof(size_t) && !HASZERO(*ws);
+			     n -= sizeof(size_t), ws++, wd++)
+				*wd = *ws;
+
+			d = (void *)wd; s = (const void *)ws;
+		}
+	}
+
+	for (; n && (*d = *s); n--, s++, d++)
+		;
+	*d = 0;
+finish:
+	return d-d0 + strlen(s);
+}
+
+size_t strlcat(char *d, const char *s, size_t n)
+{
+	size_t l = strnlen(d, n);
+	if (l == n)
+		return l + strlen(s);
+	return l + strlcpy(d+l, s, n-l);
 }

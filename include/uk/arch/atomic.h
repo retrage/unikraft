@@ -57,11 +57,13 @@ extern "C" {
 	__atomic_fetch_add(src, value, __ATOMIC_SEQ_CST)
 
 /**
- * Perform a atomic increment operation.
+ * Perform a atomic increment/decrement operation and return the
+ * previous value.
  */
 #define ukarch_inc(src) \
 	ukarch_fetch_add(src, 1)
-
+#define ukarch_dec(src) \
+	__atomic_fetch_sub(src, 1, __ATOMIC_SEQ_CST)
 /**
  * Writes *src into *dst, and returns the previous contents of *dst.
  */
@@ -86,5 +88,22 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
+
+#define	UK_ACCESS_ONCE(x)			(*(volatile __typeof(x) *)&(x))
+
+#define	UK_WRITE_ONCE(x, v) do {	\
+	barrier();			\
+	UK_ACCESS_ONCE(x) = (v);	\
+	barrier();			\
+} while (0)
+
+#define	UK_READ_ONCE(x) ({		\
+	__typeof(x) __var = ({		\
+		barrier();		\
+		UK_ACCESS_ONCE(x);	\
+	});				\
+	barrier();			\
+	__var;				\
+})
 
 #endif /* __UKARCH_ATOMIC_H__ */

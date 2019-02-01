@@ -121,14 +121,19 @@ int virtqueue_notify_enabled(struct virtqueue *vq);
  *
  * @param vq
  *	Reference to the virtqueue.
+ * @param
+ *      Reference to a reference that will point to the cookie that was
+ *      submitted with the dequeued descriptor after successful exit of this
+ *      function.
  * @param len
  *	Reference to the length of the data packet.
  * @return
- *	On Success, returns a reference to cookie that was submitted with
- *	descriptor.
- *	On failure, returns NULL with the length unmodified.
+ *	>= 0 A buffer was dequeued from the ring and the count indicates
+ *	the number of used slots in the ring after dequeueing.
+ *	< 0 Failed to dequeue a buffer, the output parameters cookie and len
+ *      are unmodified.
  */
-void *virtqueue_buffer_dequeue(struct virtqueue *vq, __u32 *len);
+int virtqueue_buffer_dequeue(struct virtqueue *vq, void **cookie, __u32 *len);
 
 /**
  * Create a descriptor chain starting at index head,
@@ -227,6 +232,13 @@ int virtqueue_intr_enable(struct virtqueue *vq);
 static inline void virtqueue_host_notify(struct virtqueue *vq)
 {
 	UK_ASSERT(vq);
+
+	/*
+	 * Before notifying the virtio backend on the host we should make sure
+	 * that the virtqueue index update operation happened. Note that this
+	 * function is declared as inline.
+	 */
+	mb();
 
 	if (vq->vq_notify_host && virtqueue_notify_enabled(vq)) {
 		uk_pr_debug("notify queue %d\n", vq->queue_id);
