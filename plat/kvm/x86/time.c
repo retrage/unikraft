@@ -45,6 +45,7 @@
 #include <uk/plat/irq.h>
 #include <kvm/tscclock.h>
 #include <uk/assert.h>
+#include <timer.h>
 
 /* return ns since time_init() */
 __nsec ukplat_monotonic_clock(void)
@@ -64,6 +65,12 @@ __nsec ukplat_clock_wall(void)
  */
 static int timer_handler(void *arg __unused)
 {
+	struct callback_handler *h;
+
+	UK_SLIST_FOREACH(h, &callback_handlers, entries) {
+        	h->func(h->arg);
+        }
+
 	/* Yes, we handled the irq. */
 	return 1;
 }

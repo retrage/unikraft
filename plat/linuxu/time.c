@@ -39,6 +39,7 @@
 #include <uk/assert.h>
 #include <linuxu/syscall.h>
 #include <linuxu/time.h>
+#include <timer.h>
 
 static k_timer_t timerid;
 
@@ -61,6 +62,12 @@ __nsec ukplat_monotonic_clock(void)
 
 static int timer_handler(void *arg __unused)
 {
+	struct callback_handler *h;
+
+        UK_SLIST_FOREACH(h, &callback_handlers, entries) {
+		h->func(h->arg);
+        }
+
 	/* We only use the timer interrupt to wake up. As we end up here, the
 	 * timer interrupt has already done its job and we can acknowledge
 	 * receiving it.
