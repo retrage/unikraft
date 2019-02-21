@@ -1,9 +1,8 @@
 /* SPDX-License-Identifier: BSD-3-Clause */
 /*
  * Authors: Costin Lupu <costin.lupu@cs.pub.ro>
- *          Simon Kuenzer <simon.kuenzer@neclab.eu>
  *
- * Copyright (c) 2017, NEC Europe Ltd., NEC Corporation. All rights reserved.
+ * Copyright (c) 2018, NEC Europe Ltd., NEC Corporation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,33 +32,17 @@
  * THIS HEADER MAY NOT BE EXTRACTED OR MODIFIED IN ANY WAY.
  */
 
-#ifndef __UKPLAT_TIME_H__
-#define __UKPLAT_TIME_H__
+#ifndef __KVM_TIME_H_
+#define __KVM_TIME_H_
 
-#include <uk/arch/time.h>
+#include <uk/list.h>
+#include <uk/plat/time.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+struct callback_handler {
+	timer_callback_func_t func;
+        void *arg;
 
-void ukplat_time_init(void);
-void ukplat_time_fini(void);
+        UK_SLIST_ENTRY(struct callback_handler) entries;
+};
 
-__nsec ukplat_monotonic_clock(void);
-
-/* Time tick length */
-#define UKPLAT_TIME_TICK_NSEC  (UKARCH_NSEC_PER_SEC / CONFIG_HZ)
-#define UKPLAT_TIME_TICK_MSEC  ukarch_time_nsec_to_msec(UKPLAT_TIME_TICK_NSEC)
-
-struct uk_alloc;
-
-typedef void (*timer_callback_func_t)(void *);
-
-int ukplat_timer_callback_init(struct uk_alloc *a);
-int ukplat_timer_callback_register(timer_callback_func_t func, void *arg);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /* __UKPLAT_TIME_H__ */
+#endif /* __KVM_TIME_H_ */

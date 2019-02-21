@@ -36,13 +36,15 @@
 #include <string.h>
 #include <uk/plat/time.h>
 #include <uk/plat/irq.h>
+#include <uk/alloc.h>
 #include <uk/assert.h>
 #include <linuxu/syscall.h>
 #include <linuxu/time.h>
-#include <timer.h>
 
 static k_timer_t timerid;
-
+static struct uk_alloc *allocator;
+UK_SLIST_HEAD(callback_handler_head, struct callback_handler);
+static struct callback_handler_head callback_handlers;
 
 __nsec ukplat_monotonic_clock(void)
 {
@@ -106,4 +108,32 @@ void ukplat_time_init(void)
 void ukplat_time_fini(void)
 {
 	sys_timer_delete(timerid);
+}
+
+int ukplat_timer_callback_init(struct uk_alloc *a)
+{
+	UK_ASSERT(!allocator);
+
+        allocator = a;
+
+        /* Clear list head */
+        UK_SLIST_INIT(&callback_handlers);
+
+        return 0;
+}
+
+int ukplat_timer_callback_register(timer_callback_func_t func, void *arg)
+{
+	struct callback_handler *h;
+
+        /* New handler */
+        h = uk_malloc(allocator, sizeof(struct callback_handler));
+        if (!h)
+        	return -ENOMEM;
+        h->func = func;
+        h->arg = arg;
+
+        UK_SLIST_INSERT_HEAD(&callback_handlers, h, entries);
+
+        return 0;
 }

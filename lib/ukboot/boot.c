@@ -43,7 +43,6 @@
 
 #if CONFIG_LIBUKALLOC && CONFIG_LIBUKALLOCBBUDDY && CONFIG_LIBUKBOOT_INITALLOC
 #include <uk/allocbbuddy.h>
-#include <timer.h>
 #endif
 #if CONFIG_LIBUKSCHED
 #include <uk/sched.h>

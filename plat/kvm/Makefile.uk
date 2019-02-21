@@ -75,7 +75,6 @@ LIBKVMPLAT_SRCS-y              += $(LIBKVMPLAT_BASE)/irq.c
 LIBKVMPLAT_SRCS-y              += $(LIBKVMPLAT_BASE)/io.c
 LIBKVMPLAT_SRCS-y              += $(UK_PLAT_COMMON_BASE)/lcpu.c|common
 LIBKVMPLAT_SRCS-y              += $(UK_PLAT_COMMON_BASE)/memory.c|common
-LIBKVMPLAT_SRCS-y              += $(UK_PLAT_COMMON_BASE)/timer.c|common
 
 ##
 ## PCI library definitions
