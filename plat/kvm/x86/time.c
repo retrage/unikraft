@@ -43,10 +43,17 @@
 #include <stdlib.h>
 #include <uk/plat/time.h>
 #include <uk/plat/irq.h>
-#include <kvm/time.h>
 #include <kvm/tscclock.h>
 #include <uk/alloc.h>
 #include <uk/assert.h>
+#include <uk/list.h>
+
+struct callback_handler {
+	timer_callback_func_t func;
+        void *arg;
+
+        UK_SLIST_ENTRY(struct callback_handler) entries;
+};
 
 static struct uk_alloc *allocator;
 UK_SLIST_HEAD(callback_handler_head, struct callback_handler);
