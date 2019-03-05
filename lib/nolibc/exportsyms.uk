@@ -81,3 +81,7 @@ _nolibc_ctype
 
 # errno
 _nolibc_errno
+
+# setjmp
+setjmp
+longjmp
