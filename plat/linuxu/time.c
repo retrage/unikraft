@@ -38,8 +38,15 @@
 #include <uk/plat/irq.h>
 #include <uk/alloc.h>
 #include <uk/assert.h>
+#include <uk/list.h>
 #include <linuxu/syscall.h>
-#include <linuxu/time.h>
+
+struct callback_handler {
+	timer_callback_func_t func;
+        void *arg;
+
+        UK_SLIST_ENTRY(struct callback_handler) entries;
+};
 
 static k_timer_t timerid;
 static struct uk_alloc *allocator;

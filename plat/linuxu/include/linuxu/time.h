@@ -35,7 +35,6 @@
 #ifndef __LINUXU_TIME_H__
 #define __LINUXU_TIME_H__
 
-#include <uk/list.h>
 #include <uk/plat/time.h>
 #include <linuxu/signal.h>
 
@@ -60,13 +59,6 @@ struct k_timespec {
 struct k_itimerspec {
 	struct k_timespec it_interval;
 	struct k_timespec it_value;
-};
-
-struct callback_handler {
-	timer_callback_func_t func;
-        void *arg;
-
-        UK_SLIST_ENTRY(struct callback_handler) entries;
 };
 
 #endif /* __LINUXU_TIME_H__ */
