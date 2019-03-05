@@ -71,6 +71,7 @@ strdup
 strlcpy
 strlcat
 strncat
+strtok_r
 
 # time
 nanosleep
