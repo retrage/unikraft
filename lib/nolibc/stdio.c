@@ -483,3 +483,23 @@ int fflush(FILE *fp __unused)
 	/* nolibc is not working with buffers */
 	return 0;
 }
+
+int fputc(int _c, FILE *fp)
+{
+	int ret;
+	unsigned char c = _c;
+
+	if (fp == stdout)
+		ret = ukplat_coutk((char *)&c, 1);
+	else if (fp == stderr)
+		ret = ukplat_coutd((char *)&c, 1);
+	else
+		return 0;
+
+        return ret;
+}
+
+int putchar(int c)
+{
+	return fputc(c, stdout);
+}

@@ -29,6 +29,8 @@ sscanf
 stdin
 stdout
 stderr
+fputc
+putchar
 vsnprintf
 vsprintf
 snprintf
