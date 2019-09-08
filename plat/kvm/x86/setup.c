@@ -35,67 +35,149 @@
 #include <kvm/intctrl.h>
 #include <kvm-x86/multiboot.h>
 #include <kvm-x86/multiboot_defs.h>
+#include <kvm-x86/eficall.h>
 #include <uk/arch/limits.h>
 #include <uk/arch/types.h>
 #include <uk/plat/console.h>
 #include <uk/assert.h>
 #include <uk/essentials.h>
+#include <Uefi.h>
+#include <GlobalTable.h>
+#include <Protocol/LoadedImage.h>
 
 #define PLATFORM_MEM_START 0x100000
 #define PLATFORM_MAX_MEM_ADDR 0x40000000
 
 #define MAX_CMDLINE_SIZE 8192
 static char cmdline[MAX_CMDLINE_SIZE];
+static uintptr_t reloc_region_addr;
+static size_t reloc_region_size;
 
 struct kvmplat_config _libkvmplat_cfg = { 0 };
 
 extern void _libkvmplat_newstack(uintptr_t stack_start, void (*tramp)(void *),
 				 void *arg);
 
-static inline void _mb_get_cmdline(struct multiboot_info *mi)
+static void *_efi_alloc_reloc_region(uintptr_t addr, size_t size)
 {
-	char *mi_cmdline;
+    int i;
+    int found;
+    void *ptr;
+    UINTN map_size;
+    VOID *buffer;
+    UINTN map_key;
+    UINTN desc_size;
+    UINT32 desc_version;
+    EFI_MEMORY_DESCRIPTOR *mem_desc;
+    UINTN start;
+    UINTN pages;
+    EFI_STATUS status;
 
-	if (mi->flags & MULTIBOOT_INFO_CMDLINE) {
-		mi_cmdline = (char *)(__u64)mi->cmdline;
+	if (!gBS)
+      return NULL;
 
-		if (strlen(mi_cmdline) > sizeof(cmdline) - 1)
-			uk_pr_err("Command line too long, truncated\n");
-		strncpy(cmdline, mi_cmdline,
-			sizeof(cmdline));
-	} else {
-		/* Use image name as cmdline to provide argv[0] */
-		uk_pr_debug("No command line present\n");
-		strncpy(cmdline, CONFIG_UK_NAME, sizeof(cmdline));
-	}
+    map_size = __PAGE_SIZE;
+    do {
+      status = efi_call3(gBS->AllocatePool, EfiLoaderData, map_size, &buffer);
+      if (EFI_ERROR(status))
+        return NULL;
+      status = efi_call5(gBS->GetMemoryMap, &map_size, buffer, &map_key,
+                          &desc_size, &desc_version);
+      if (status == EFI_BUFFER_TOO_SMALL) {
+        status = efi_call1(gBS->FreePool, buffer);
+        if (EFI_ERROR(status))
+          return NULL;
+        map_size <<= 1;
+      } else if (EFI_ERROR(status))
+        return NULL;
+    } while (EFI_ERROR(status));
 
+    i = 0;
+    found = 0;
+    ptr = (void *)buffer;
+    while (ptr - (void *)buffer < map_size) {
+      mem_desc = (EFI_MEMORY_DESCRIPTOR *)ptr;
+      start = mem_desc->PhysicalStart;
+      pages = mem_desc->NumberOfPages;
+      if (mem_desc->Type == EfiConventionalMemory) {
+        if (start <= addr && addr + size <= start + __PAGE_SIZE * pages) {
+          found = 1;
+          break;
+        }
+      }
+      ptr += desc_size;
+      i++;
+    }
+
+    status = efi_call1(gBS->FreePool, buffer);
+    if (EFI_ERROR(status))
+      return NULL;
+
+    if (!found)
+      return NULL;
+
+    reloc_region_addr = start;
+    reloc_region_size = __PAGE_SIZE * pages;
+    /* Allocate all available pages in the region. */
+    status = efi_call4(gBS->AllocatePages, AllocateAddress, EfiLoaderData,
+                        pages, &start);
+    if (EFI_ERROR(status))
+      return NULL;
+
+    efi_call3(gBS->CopyMem, (void *)addr, (void *)__TEXT, size);
+
+    return (void *)addr;
+}
+
+static inline void _efi_get_cmdline()
+{
+	int i;
+    CHAR16 *load_opt;
+    size_t opt_size;
+    EFI_GUID loaded_image_guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
+    EFI_LOADED_IMAGE_PROTOCOL *loaded_image;
+    EFI_STATUS status;
+
+    if (!gBS)
+      goto done;
+
+    status = efi_call3(gBS->HandleProtocol,
+                        gImageHandle, &loaded_image_guid, &loaded_image);
+    if (EFI_ERROR(status)) {
+      /* Use image name as cmdline to provide argv[0] */
+      strncpy(cmdline, CONFIG_UK_NAME, sizeof(cmdline));
+      uk_pr_err("EFI Loaded Image Protocol not found\n");
+      goto done;
+    }
+
+    load_opt = (CHAR16 *)loaded_image->LoadOptions;
+    opt_size = loaded_image->LoadOptionsSize / (sizeof(CHAR16) / sizeof(char));
+    if (opt_size > sizeof(cmdline)) {
+      uk_pr_err("Command line too long, truncated\n");
+      opt_size = cmdline - 1;
+    }
+
+    if (opt_size > 0) {
+      for (i = 0; i < opt_size; i++)
+        cmdline[i] = (char)(load_opt[i] & 0x00ff);
+    } else {
+	  uk_pr_debug("No command line present\n");
+    }
+
+done:
 	/* ensure null termination */
 	cmdline[(sizeof(cmdline) - 1)] = '\0';
 }
 
-static inline void _mb_init_mem(struct multiboot_info *mi)
+static inline void _efi_init_mem()
 {
-	multiboot_memory_map_t *m;
-	size_t offset, max_addr;
-
-	/*
-	 * Look for the first chunk of memory at PLATFORM_MEM_START.
-	 */
-	for (offset = 0; offset < mi->mmap_length;
-	     offset += m->size + sizeof(m->size)) {
-		m = (void *)(__uptr)(mi->mmap_addr + offset);
-		if (m->addr == PLATFORM_MEM_START
-		    && m->type == MULTIBOOT_MEMORY_AVAILABLE) {
-			break;
-		}
-	}
-	UK_ASSERT(offset < mi->mmap_length);
+	size_t max_addr;
 
 	/*
 	 * Cap our memory size to PLATFORM_MAX_MEM_SIZE which boot.S defines
 	 * page tables for.
 	 */
-	max_addr = m->addr + m->len;
+	max_addr = reloc_region_addr + reloc_region_size;
 	if (max_addr > PLATFORM_MAX_MEM_ADDR)
 		max_addr = PLATFORM_MAX_MEM_ADDR;
 	UK_ASSERT((size_t) __END <= max_addr);
@@ -103,7 +185,7 @@ static inline void _mb_init_mem(struct multiboot_info *mi)
 	/*
 	 * Reserve space for boot stack at the end of found memory
 	 */
-	if ((max_addr - m->addr) < __STACK_SIZE)
+	if ((max_addr - reloc_region_addr) < __STACK_SIZE)
 		UK_CRASH("Not enough memory to allocate boot stack\n");
 
 	_libkvmplat_cfg.heap.start = ALIGN_UP((uintptr_t) __END, __PAGE_SIZE);
@@ -115,140 +197,42 @@ static inline void _mb_init_mem(struct multiboot_info *mi)
 	_libkvmplat_cfg.bstack.len   = __STACK_SIZE;
 }
 
-static inline void _mb_init_initrd(struct multiboot_info *mi)
+static inline void _efi_init_initrd()
 {
-	multiboot_module_t *mod1;
-	uintptr_t heap0_start, heap0_end;
-	uintptr_t heap1_start, heap1_end;
-	size_t    heap0_len,   heap1_len;
+    /* Do nothing */
+}
 
-	/*
-	 * Search for initrd (called boot module according multiboot)
-	 */
-	if (mi->mods_count == 0) {
-		uk_pr_debug("No initrd present\n");
-		goto no_initrd;
-	}
+static inline void _efi_exit_bootservices()
+{
+    UINTN map_size;
+    VOID *buffer;
+    UINTN map_key;
+    UINTN desc_size;
+    UINT32 desc_version;
+    EFI_STATUS status;
 
-	/*
-	 * NOTE: We are only taking the first boot module as initrd.
-	 *       Initrd arguments and further modules are ignored.
-	 */
-	UK_ASSERT(mi->mods_addr);
+	if (!gBS)
+      return NULL;
 
-	mod1 = (multiboot_module_t *)((uintptr_t) mi->mods_addr);
-	UK_ASSERT(mod1->mod_end >= mod1->mod_start);
+    map_size = __PAGE_SIZE;
+    do {
+      status = efi_call3(gBS->AllocatePool, EfiLoaderData, map_size, &buffer);
+      if (EFI_ERROR(status))
+        return NULL;
+      status = efi_call5(gBS->GetMemoryMap, &map_size, buffer, &map_key,
+                          &desc_size, &desc_version);
+      if (status == EFI_BUFFER_TOO_SMALL) {
+        status = efi_call1(gBS->FreePool, buffer);
+        if (EFI_ERROR(status))
+          return NULL;
+        map_size <<= 1;
+      } else if (EFI_ERROR(status))
+        return NULL;
+    } while (EFI_ERROR(status));
 
-	if (mod1->mod_end == mod1->mod_start) {
-		uk_pr_debug("Ignoring empty initrd\n");
-		goto no_initrd;
-	}
-
-	_libkvmplat_cfg.initrd.start = (uintptr_t) mod1->mod_start;
-	_libkvmplat_cfg.initrd.end = (uintptr_t) mod1->mod_end;
-	_libkvmplat_cfg.initrd.len = (size_t) (mod1->mod_end - mod1->mod_start);
-
-	/*
-	 * Check if initrd is part of heap
-	 * In such a case, we figure out the remaining pieces as heap
-	 */
-	if (_libkvmplat_cfg.heap.len == 0) {
-		/* We do not have a heap */
-		goto out;
-	}
-	heap0_start = 0;
-	heap0_end   = 0;
-	heap1_start = 0;
-	heap1_end   = 0;
-	if (RANGE_OVERLAP(_libkvmplat_cfg.heap.start,
-			  _libkvmplat_cfg.heap.len,
-			  _libkvmplat_cfg.initrd.start,
-			  _libkvmplat_cfg.initrd.len)) {
-		if (IN_RANGE(_libkvmplat_cfg.initrd.start,
-			     _libkvmplat_cfg.heap.start,
-			     _libkvmplat_cfg.heap.len)) {
-			/* Start of initrd within heap range;
-			 * Use the prepending left piece as heap */
-			heap0_start = _libkvmplat_cfg.heap.start;
-			heap0_end   = ALIGN_DOWN(_libkvmplat_cfg.initrd.start,
-						 __PAGE_SIZE);
-		}
-		if (IN_RANGE(_libkvmplat_cfg.initrd.start,
-
-			     _libkvmplat_cfg.heap.start,
-			     _libkvmplat_cfg.heap.len)) {
-			/* End of initrd within heap range;
-			 * Use the remaining left piece as heap */
-			heap1_start = ALIGN_UP(_libkvmplat_cfg.initrd.end,
-					       __PAGE_SIZE);
-			heap1_end   = _libkvmplat_cfg.heap.end;
-		}
-	} else {
-		/* Initrd is not overlapping with heap */
-		heap0_start = _libkvmplat_cfg.heap.start;
-		heap0_end   = _libkvmplat_cfg.heap.end;
-	}
-	heap0_len = heap0_end - heap0_start;
-	heap1_len = heap1_end - heap1_start;
-
-	/*
-	 * Update heap regions
-	 * We make sure that in we start filling left heap pieces at
-	 * `_libkvmplat_cfg.heap`. Any additional piece will then be
-	 * placed to `_libkvmplat_cfg.heap2`.
-	 */
-	if (heap0_len == 0) {
-		/* Heap piece 0 is empty, use piece 1 as only */
-		if (heap1_len != 0) {
-			_libkvmplat_cfg.heap.start = heap1_start;
-			_libkvmplat_cfg.heap.end   = heap1_end;
-			_libkvmplat_cfg.heap.len   = heap1_len;
-		} else {
-			_libkvmplat_cfg.heap.start = 0;
-			_libkvmplat_cfg.heap.end   = 0;
-			_libkvmplat_cfg.heap.len   = 0;
-		}
-		 _libkvmplat_cfg.heap2.start = 0;
-		 _libkvmplat_cfg.heap2.end   = 0;
-		 _libkvmplat_cfg.heap2.len   = 0;
-	} else {
-		/* Heap piece 0 has memory */
-		_libkvmplat_cfg.heap.start = heap0_start;
-		_libkvmplat_cfg.heap.end   = heap0_end;
-		_libkvmplat_cfg.heap.len   = heap0_len;
-		if (heap1_len != 0) {
-			_libkvmplat_cfg.heap2.start = heap1_start;
-			_libkvmplat_cfg.heap2.end   = heap1_end;
-			_libkvmplat_cfg.heap2.len   = heap1_len;
-		} else {
-			_libkvmplat_cfg.heap2.start = 0;
-			_libkvmplat_cfg.heap2.end   = 0;
-			_libkvmplat_cfg.heap2.len   = 0;
-		}
-	}
-
-	/*
-	 * Double-check that initrd is not overlapping with previously allocated
-	 * boot stack. We crash in such a case because we assume that multiboot
-	 * places the initrd close to the beginning of the heap region. One need
-	 * to assign just more memory in order to avoid this crash.
-	 */
-	if (RANGE_OVERLAP(_libkvmplat_cfg.heap.start,
-			  _libkvmplat_cfg.heap.len,
-			  _libkvmplat_cfg.initrd.start,
-			  _libkvmplat_cfg.initrd.len))
-		UK_CRASH("Not enough space at end of memory for boot stack\n");
-out:
-	return;
-
-no_initrd:
-	_libkvmplat_cfg.initrd.start = 0;
-	_libkvmplat_cfg.initrd.end   = 0;
-	_libkvmplat_cfg.initrd.len   = 0;
-	_libkvmplat_cfg.heap2.start  = 0;
-	_libkvmplat_cfg.heap2.end    = 0;
-	_libkvmplat_cfg.heap2.len    = 0;
-	return;
+    status = efi_call2(gBS->ExitBootServices, gImageHandle, map_key);
+    if (EFI_ERROR(status))
+      uk_pr_err("EFI ExitBootServices failed: Status=%d\n", status);
 }
 
 static void _libkvmplat_entry2(void *arg __attribute__((unused)))
@@ -256,25 +240,20 @@ static void _libkvmplat_entry2(void *arg __attribute__((unused)))
 	ukplat_entry_argp(NULL, cmdline, sizeof(cmdline));
 }
 
-void _libkvmplat_entry(void *arg)
+void _libkvmplat_entry()
 {
-	struct multiboot_info *mi = (struct multiboot_info *)arg;
-
 	_init_cpufeatures();
 	_libkvmplat_init_console();
 	traps_init();
 	intctrl_init();
 
 	uk_pr_info("Entering from KVM (x86)...\n");
-	uk_pr_info("     multiboot: %p\n", mi);
+	uk_pr_info("     EFI System Table: %p\n", *gST);
 
-	/*
-	 * The multiboot structures may be anywhere in memory, so take a copy of
-	 * everything necessary before we initialise memory allocation.
-	 */
-	_mb_get_cmdline(mi);
-	_mb_init_mem(mi);
-	_mb_init_initrd(mi);
+    _efi_get_cmdline();
+    _efi_init_mem();
+    _efi_init_initrd();
+    _efi_exit_bootservices();
 
 	if (_libkvmplat_cfg.initrd.len)
 		uk_pr_info("        initrd: %p\n",
@@ -292,6 +271,29 @@ void _libkvmplat_entry(void *arg)
 	 */
 	uk_pr_info("Switch from bootstrap stack to stack @%p\n",
 		   (void *) _libkvmplat_cfg.bstack.end);
+
 	_libkvmplat_newstack(_libkvmplat_cfg.bstack.end,
-			     _libkvmplat_entry2, 0);
+                         _libkvmplat_entry2, 0);
+}
+
+int _libkvmplat_efi_setup(EFI_HANDLE image_handle,
+    EFI_SYSTEM_TABLE *system_table)
+{
+  uintptr_t addr;
+  size_t size;
+  void *reloc_region;
+
+  /* Initialize global table pointers. */
+  gImageHandle = image_handle;
+  gST = system_table;
+  gBS = gST->BootServices;
+
+  addr = PLATFORM_MEM_START + __PAGE_SIZE;
+  size = ALIGN_UP(__END - __TEXT, __PAGE_SIZE);
+
+  reloc_region = _efi_alloc_reloc_region(addr, size);
+  if (!reloc_region)
+    return -1;
+
+  return 0;
 }

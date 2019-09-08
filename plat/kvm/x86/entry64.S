@@ -29,7 +29,6 @@
 
 #include <x86/cpu_defs.h>
 #include <kvm-x86/traps.h>
-#include <kvm-x86/multiboot_defs.h>
 
 #define ENTRY(x) .globl x; .type x,%function; x:
 #define END(x)   .size x, . - x
@@ -139,68 +138,6 @@ section_header:
 
 _ehdr:
 
-.section .bss
-
-.space 4096
-bootstack:
-
-/*
- * Bootloader entry point.
- *
- * Bootstrap is slightly different from i386.  Multiboot puts us only
- * in 32bit mode, so it's our responsibility to install a page table
- * and switch to long mode.  Notably, we can't call C code until
- * we've switched to long mode.
- */
-.code32
-.section .text.boot
-
-ENTRY(_libkvmplat_start32)
-	cld
-
-	/* only multiboot is supported for now */
-	cmpl $MULTIBOOT_BOOTLOADER_MAGIC, %eax
-	jne nomultiboot
-
-	/*
-	 * Multiboot drops us off in 32-bit protected mode with some sane
-	 * initial settings, good enough to go straight for the only thing
-	 * that we care about: go straight into long mode..
-	 */
-
-	/* 1: enable pae */
-	movl %cr4, %eax
-	orl $X86_CR4_PAE, %eax
-	movl %eax, %cr4
-
-	/* 2: enable long mode */
-	movl $0xc0000080, %ecx
-	rdmsr
-	orl $X86_EFER_LME, %eax
-	wrmsr
-
-	/* 3: load pml4 pointer */
-	movl $cpu_pml4, %eax
-	movl %eax, %cr3
-
-	/* 4: enable paging */
-	movl %cr0, %eax
-	orl $X86_CR0_PG, %eax
-	movl %eax, %cr0
-
-	jmp _libkvmplat_start64
-
-	/* NOTREACHED */
-	jmp haltme
-
-nomultiboot:
-
-haltme:
-	cli
-	hlt
-	jmp haltme
-END(_libkvmplat_start32)
-
 /*
  * amd64 programmer's manual:
  *
@@ -238,9 +175,22 @@ mxcsr_ptr:
 .section .text.boot
 
 ENTRY(_libkvmplat_start64)
-	/* set up the boot stack */
-	movq $bootstack, %rsp
-	xorq %rbp, %rbp
+	cld
+
+	movq %rcx, %rdi
+	movq %rdx, %rsi
+	call _libkvmplat_efi_setup
+	cmpq $0, %rax
+	jne fail
+
+	/* load pml4 pointer */
+	movl $cpu_pml4, %eax
+	movq %eax, %cr3
+
+	/* enable paging */
+	movq %cr0, %eax
+	orl $X86_CR0_PG, %eax
+	movq %eax, %cr0
 
 	lgdt (gdt64_ptr)
 	/* let lret jump just one instruction ahead, but set %cs
@@ -258,12 +208,6 @@ ENTRY(_libkvmplat_start64)
 	xorq %rax, %rax
 	movq %rax, %fs
 	movq %rax, %gs
-
-	/* Multiboot gives us a pointer to its mutliboot information in ebx.
-	 * However, we need that for cpuid, so push it here and then
-	 * and pop it back at the end.
-	 */
-	pushq %rbx
 
 	/* We will work on cr0 and cr4 multiple times.
 	 * We put cr0 into rsi and cr4 into rdi, because cpuid and
@@ -317,11 +261,9 @@ noxsave:
 nofsgsbase:
 	/* done setting up CPU capabilities */
 
-	/* read multiboot info pointer */
-	popq %rdi
-
 	call _libkvmplat_entry
 
+fail:
 	cli
 	hlt
 END(_libkvmplat_start64)
