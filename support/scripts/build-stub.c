@@ -39,20 +39,14 @@ static void parse_symbol_table(const char *sym_name)
   const char *HEADER = "_hdr";
   const char *ENTRY = "_libkvmplat_start64";
   const char *TEXT = "_text";
-  const char *ETEXT = "_etext";
   const char *RODATA = "_rodata";
-  const char *ECTORS = "_ectors";
   const char *DATA = "_data";
-  const char *EDATA = "_edata";
   const char *BSS = "__bss_start";
   const char *END = "_end";
 
   unsigned int text;
-  unsigned int etext;
   unsigned int rodata;
-  unsigned int ectors;
   unsigned int data;
-  unsigned int edata;
   unsigned int bss;
   unsigned int end;
 
@@ -66,16 +60,10 @@ static void parse_symbol_table(const char *sym_name)
       address_of_entry_point = addr - offset;
     } else if (!strncmp(sym, TEXT, STRSIZE)) {
       text = addr - offset;
-    } else if (!strncmp(sym, ETEXT, STRSIZE)) {
-      etext = addr - offset;
     } else if (!strncmp(sym, RODATA, STRSIZE)) {
       rodata = addr - offset;
-    } else if (!strncmp(sym, ECTORS, STRSIZE)) {
-      ectors = addr - offset;
     } else if (!strncmp(sym, DATA, STRSIZE)) {
       data = addr - offset;
-    } else if (!strncmp(sym, EDATA, STRSIZE)) {
-      edata = addr - offset;
     } else if (!strncmp(sym, BSS, STRSIZE)) {
       bss = addr - offset;
     } else if (!strncmp(sym, END, STRSIZE)) {
@@ -83,16 +71,16 @@ static void parse_symbol_table(const char *sym_name)
     }
    }
 
-  text_size = ALIGN_UP(etext - text, ALIGN);
+  text_size = ALIGN_UP(rodata - text, ALIGN);
   text_addr = text;
-  rodata_size = ALIGN_UP(ectors - rodata, ALIGN);
+  rodata_size = ALIGN_UP(data - rodata, ALIGN);
   rodata_addr = rodata;
-  data_size = ALIGN_UP(edata - data, ALIGN);
+  data_size = ALIGN_UP(bss - data, ALIGN);
   data_addr = data;
   bss_size = ALIGN_UP(end - bss, ALIGN);
   bss_addr = bss;
 
-  base_of_code = text;
+  base_of_code = text_addr;
   size_of_code = text_size;
   size_of_image = end;
 
