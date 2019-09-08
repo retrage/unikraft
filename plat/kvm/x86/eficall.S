@@ -4,6 +4,7 @@
 .global efi_call2
 .global efi_call3
 .global efi_call4
+.global efi_call5
 
 .text
 
@@ -34,4 +35,16 @@ efi_call4:
   movq %r10, %r8
   movq %r11, %r9
   call *%rdi
+  ret
+
+efi_call5:
+  pushq %r9
+  movq %rcx, %r10
+  movq %r8, %r11
+  movq %rsi, %rcx
+  movq %rdx, %rdx
+  movq %r10, %r8
+  movq %r11, %r9
+  call *%rdi
+  popq %r9
   ret
