@@ -187,11 +187,6 @@ ENTRY(_libkvmplat_start64)
 	movl $cpu_pml4, %eax
 	movq %eax, %cr3
 
-	/* enable paging */
-	movq %cr0, %eax
-	orl $X86_CR0_PG, %eax
-	movq %eax, %cr0
-
 	lgdt (gdt64_ptr)
 	/* let lret jump just one instruction ahead, but set %cs
 	 * to the correect GDT entry while doing that.
