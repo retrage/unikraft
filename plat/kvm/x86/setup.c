@@ -60,7 +60,6 @@ extern void _libkvmplat_newstack(uintptr_t stack_start, void (*tramp)(void *),
 
 static void *_efi_alloc_reloc_region(uintptr_t addr, size_t size)
 {
-    int i;
     int found;
     void *ptr;
     UINTN map_size;
@@ -92,7 +91,6 @@ static void *_efi_alloc_reloc_region(uintptr_t addr, size_t size)
         return NULL;
     } while (EFI_ERROR(status));
 
-    i = 0;
     found = 0;
     ptr = (void *)buffer;
     while (ptr - (void *)buffer < map_size) {
@@ -106,7 +104,6 @@ static void *_efi_alloc_reloc_region(uintptr_t addr, size_t size)
         }
       }
       ptr += desc_size;
-      i++;
     }
 
     status = efi_call1(gBS->FreePool, buffer);
