@@ -35,3 +35,6 @@ GTAGS
 cscope.*
 ncscope.*
 support/scripts/uk_trace/uk_trace.egg-info/
+
+# build-stub files
+support/scripts/build-stub
