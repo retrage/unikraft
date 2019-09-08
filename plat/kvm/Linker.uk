@@ -10,6 +10,7 @@ endif
 ##
 KVM_IMAGE := $(BUILD_DIR)/$(CONFIG_UK_NAME)_kvm-$(CONFIG_UK_ARCH)
 KVM_DEBUG_IMAGE := $(KVM_IMAGE).dbg
+KVM_BUILD_STUB := $(SCRIPTS_DIR)/build-stub
 
 KVM_LD_SCRIPT_FLAGS := $(addprefix -Wl$(comma)-dT$(comma),\
 			 $(UK_PLAT_KVM_DEF_LDS))
@@ -37,6 +38,20 @@ $(KVM_DEBUG_IMAGE): $(KVM_ALIBS) $(KVM_ALIBS-y) $(KVM_OLIBS) $(KVM_OLIBS-y) \
 		     $(KVM_LD_SCRIPT_FLAGS) \
 		     $(KVM_IMAGE).o -o $@)
 
+$(KVM_BUILD_STUB):
+	$(call build_cmd,HOSTCC,,$@,\
+		$(HOSTCC) -I$(SCRIPTS_DIR)/include $@.c -o $@)
+
+$(KVM_IMAGE).efi: $(KVM_DEBUG_IMAGE) $(KVM_IMAGE).sym $(KVM_BUILD_STUB)
+	$(call build_cmd,OBJCOPY,,$(KVM_IMAGE).bin,\
+		$(OBJCOPY) -O binary \
+			$(KVM_IMAGE).dbg \
+			$(KVM_IMAGE).bin)
+	$(call build_cmd,SCCONV,,$@,\
+		$(KVM_BUILD_STUB) \
+			$(KVM_IMAGE).sym \
+			$(KVM_IMAGE).bin $@)
+
 $(KVM_IMAGE): $(KVM_IMAGE).dbg
 	$(call build_cmd,SCSTRIP,,$@,\
 		$(SCRIPTS_DIR)/sect-strip.py \
@@ -55,6 +70,7 @@ $(KVM_IMAGE).gz: $(KVM_IMAGE)
 ifeq ($(CONFIG_PLAT_KVM),y)
 UK_DEBUG_IMAGES-y                     += $(KVM_DEBUG_IMAGE)
 UK_IMAGES-y                           += $(KVM_IMAGE)
+UK_IMAGES-y                           += $(KVM_IMAGE).efi
 UK_IMAGES-$(CONFIG_OPTIMIZE_SYMFILE)  += $(KVM_IMAGE).sym
 UK_IMAGES-$(CONFIG_OPTIMIZE_COMPRESS) += $(KVM_IMAGE).gz
 endif
@@ -62,3 +78,4 @@ endif
 # ...for cleaning:
 LIBKVMPLAT_CLEAN += $(call build_clean,$(KVM_IMAGE).o)
 LIBKVMPLAT_CLEAN += $(call build_clean,$(KVM_IMAGE).ld.o)
+LIBKVMPLAT_CLEAN += $(call build_clean,$(KVM_BUILD_STUB))
