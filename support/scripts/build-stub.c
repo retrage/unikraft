@@ -14,7 +14,6 @@
 const size_t ALIGN = 0x1000;
 const size_t STRSIZE = 1024;
 
-unsigned long long offset;
 unsigned int address_of_entry_point;
 unsigned int size_of_code;
 unsigned int base_of_code;
@@ -44,30 +43,37 @@ static void parse_symbol_table(const char *sym_name)
   const char *BSS = "__bss_start";
   const char *END = "_end";
 
-  unsigned int text;
-  unsigned int rodata;
-  unsigned int data;
-  unsigned int bss;
-  unsigned int end;
+  unsigned long long offset = 0;
+  unsigned int text = 0;
+  unsigned int rodata = 0;
+  unsigned int data = 0;
+  unsigned int bss = 0;
+  unsigned int end = 0;
 
   unsigned long long addr;
   char c;
   char sym[STRSIZE];
   while (fscanf(sym_fp, "%llx %c %s", &addr, &c, sym) != EOF) {
-    if (!strncmp(sym, HEADER, STRSIZE)) {
+    if (!strncmp(sym, HEADER, STRSIZE) && offset == 0) {
       offset = addr;
     } else if (!strncmp(sym, ENTRY, STRSIZE)) {
-      address_of_entry_point = addr - offset;
+      if (offset != 0)
+        address_of_entry_point = addr - offset;
     } else if (!strncmp(sym, TEXT, STRSIZE)) {
-      text = addr - offset;
+      if (offset != 0 && text == 0)
+        text = addr - offset;
     } else if (!strncmp(sym, RODATA, STRSIZE)) {
-      rodata = addr - offset;
+      if (offset != 0 && rodata == 0)
+        rodata = addr - offset;
     } else if (!strncmp(sym, DATA, STRSIZE)) {
-      data = addr - offset;
+      if (offset != 0 && data == 0)
+        data = addr - offset;
     } else if (!strncmp(sym, BSS, STRSIZE)) {
-      bss = addr - offset;
+      if (offset != 0 && bss == 0)
+        bss = addr - offset;
     } else if (!strncmp(sym, END, STRSIZE)) {
-      end = addr - offset;
+      if (offset != 0)
+        end = addr - offset;
     }
    }
 
