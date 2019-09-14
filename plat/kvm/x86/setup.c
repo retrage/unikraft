@@ -171,6 +171,28 @@ done:
 static inline void _efi_init_mem()
 {
 	size_t max_addr;
+    EFI_GUID loaded_image_guid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
+    EFI_LOADED_IMAGE_PROTOCOL *loaded_image;
+    void *image_base;
+    size_t image_size;
+    EFI_STATUS status;
+
+    if (!gBS)
+      return;
+
+    status = efi_call3(gBS->HandleProtocol,
+                        gImageHandle, &loaded_image_guid, &loaded_image);
+    if (EFI_ERROR(status)) {
+      uk_pr_err("EFI Loaded Image Protocol not found\n");
+      return;
+    }
+
+    image_base = loaded_image->ImageBase;
+    image_size = loaded_image->ImageSize;
+
+    status = efi_call2(gBS->FreePages, image_base, image_size / __PAGE_SIZE);
+    if (EFI_ERROR(status))
+      return;
 
 	/*
 	 * Cap our memory size to PLATFORM_MAX_MEM_SIZE which boot.S defines
