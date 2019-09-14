@@ -31,14 +31,7 @@ SECTIONS
 {
 	. = 0x100000;
 
-	/* Header */
-	.header :
-	{
-		KEEP (*(.data.header))
-	}
-
 	/* Code */
-	. = ALIGN(__PAGE_SIZE);
 	_text = .;
 	.text :
 	{

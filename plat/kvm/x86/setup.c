@@ -58,6 +58,8 @@ struct kvmplat_config _libkvmplat_cfg = { 0 };
 extern void _libkvmplat_newstack(uintptr_t stack_start, void (*tramp)(void *),
 				 void *arg);
 
+extern void _libkvmplat_start64(void);
+
 static void *_efi_alloc_reloc_region(uintptr_t addr, size_t size)
 {
     int found;
@@ -273,7 +275,7 @@ void _libkvmplat_entry()
                          _libkvmplat_entry2, 0);
 }
 
-int _libkvmplat_efi_setup(EFI_HANDLE image_handle,
+void _libkvmplat_efi_setup(EFI_HANDLE image_handle,
     EFI_SYSTEM_TABLE *system_table)
 {
   uintptr_t addr;
@@ -285,12 +287,13 @@ int _libkvmplat_efi_setup(EFI_HANDLE image_handle,
   gST = system_table;
   gBS = gST->BootServices;
 
-  addr = PLATFORM_MEM_START + __PAGE_SIZE;
+  addr = PLATFORM_MEM_START;
   size = ALIGN_UP(__END - __TEXT, __PAGE_SIZE);
 
   reloc_region = _efi_alloc_reloc_region(addr, size);
   if (!reloc_region)
-    return -1;
+    return;
 
-  return 0;
+  /* Call startup function where in the relocated region. */
+  _libkvmplat_start64();
 }
