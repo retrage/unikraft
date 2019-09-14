@@ -211,27 +211,27 @@ static inline void _efi_exit_bootservices()
     EFI_STATUS status;
 
 	if (!gBS)
-      return NULL;
+      return;
 
     map_size = __PAGE_SIZE;
     do {
       status = efi_call3(gBS->AllocatePool, EfiLoaderData, map_size, &buffer);
       if (EFI_ERROR(status))
-        return NULL;
+        return;
       status = efi_call5(gBS->GetMemoryMap, &map_size, buffer, &map_key,
                           &desc_size, &desc_version);
       if (status == EFI_BUFFER_TOO_SMALL) {
         status = efi_call1(gBS->FreePool, buffer);
         if (EFI_ERROR(status))
-          return NULL;
+          return;
         map_size <<= 1;
       } else if (EFI_ERROR(status))
-        return NULL;
+        return;
     } while (EFI_ERROR(status));
 
     status = efi_call2(gBS->ExitBootServices, gImageHandle, map_key);
     if (EFI_ERROR(status))
-      uk_pr_err("EFI ExitBootServices failed: Status=%d\n", status);
+      uk_pr_err("EFI ExitBootServices failed\n");
 }
 
 static void _libkvmplat_entry2(void *arg __attribute__((unused)))
@@ -247,7 +247,7 @@ void _libkvmplat_entry()
 	intctrl_init();
 
 	uk_pr_info("Entering from KVM (x86)...\n");
-	uk_pr_info("     EFI System Table: %p\n", *gST);
+	uk_pr_info("     EFI System Table: %p\n", gST);
 
     _efi_get_cmdline();
     _efi_init_mem();
