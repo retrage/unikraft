@@ -33,9 +33,8 @@
 #define ENTRY(x) .globl x; .type x,%function; x:
 #define END(x)   .size x, . - x
 
-.section .data.header
+.section .data.boot
 
-_hdr:
 /* DOS Header */
 dos_header:
 .ascii "MZ"                             /* e_magic */
@@ -78,7 +77,7 @@ optional_header:
 .word 0x0000
 .long 0x00000000
 .long 0x00000000                        /* FILLED: SizeOfImage */
-.long _ehdr - _hdr                      /* SizeOfHeaders */
+.long 0x000001e8                        /* SizeOfHeaders */
 .long 0x00000000                        /* FIXME: Checksum */
 .word 0x000a                            /* Subsystem */
 .word 0x0000
@@ -138,6 +137,7 @@ section_header:
 
 _ehdr:
 
+.align 0x1000
 /*
  * amd64 programmer's manual:
  *
@@ -174,15 +174,18 @@ mxcsr_ptr:
 .code64
 .section .text.boot
 
-ENTRY(_libkvmplat_start64)
+ENTRY(_libkvmplat_efi_start)
 	cld
 
 	movq %rcx, %rdi
 	movq %rdx, %rsi
 	call _libkvmplat_efi_setup
-	cmpq $0, %rax
-	jne fail
 
+	cli
+	hlt
+END(_libkvmplat_efi_start)
+
+ENTRY(_libkvmplat_start64)
 	/* load pml4 pointer */
 	movl $cpu_pml4, %eax
 	movq %eax, %cr3
@@ -258,7 +261,6 @@ nofsgsbase:
 
 	call _libkvmplat_entry
 
-fail:
 	cli
 	hlt
 END(_libkvmplat_start64)

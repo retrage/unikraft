@@ -35,9 +35,9 @@ static void parse_symbol_table(const char *sym_name)
     return;
   }
 
-  const char *HEADER = "_hdr";
-  const char *ENTRY = "_libkvmplat_start64";
   const char *TEXT = "_text";
+  const char *EHDR = "_ehdr";
+  const char *ENTRY = "_libkvmplat_efi_start";
   const char *RODATA = "_rodata";
   const char *DATA = "_data";
   const char *BSS = "__bss_start";
@@ -54,14 +54,12 @@ static void parse_symbol_table(const char *sym_name)
   char c;
   char sym[STRSIZE];
   while (fscanf(sym_fp, "%llx %c %s", &addr, &c, sym) != EOF) {
-    if (!strncmp(sym, HEADER, STRSIZE) && offset == 0) {
+    if (!strncmp(sym, TEXT, STRSIZE)) {
       offset = addr;
+    } else if (!strncmp(sym, EHDR, STRSIZE)) {
+      text = ALIGN_UP(addr, ALIGN) - offset;
     } else if (!strncmp(sym, ENTRY, STRSIZE)) {
-      if (offset != 0)
-        address_of_entry_point = addr - offset;
-    } else if (!strncmp(sym, TEXT, STRSIZE)) {
-      if (offset != 0 && text == 0)
-        text = addr - offset;
+      address_of_entry_point = addr - offset;
     } else if (!strncmp(sym, RODATA, STRSIZE)) {
       if (offset != 0 && rodata == 0)
         rodata = addr - offset;
