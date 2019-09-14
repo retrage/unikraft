@@ -55,7 +55,8 @@ static void parse_symbol_table(const char *sym_name)
   char sym[STRSIZE];
   while (fscanf(sym_fp, "%llx %c %s", &addr, &c, sym) != EOF) {
     if (!strncmp(sym, TEXT, STRSIZE)) {
-      offset = addr;
+      if (offset == 0)
+        offset = addr;
     } else if (!strncmp(sym, EHDR, STRSIZE)) {
       text = ALIGN_UP(addr, ALIGN) - offset;
     } else if (!strncmp(sym, ENTRY, STRSIZE)) {
