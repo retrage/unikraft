@@ -55,6 +55,7 @@ char *strncpy(char *dst, const char *src, size_t len);
 char *strcpy(char *dst, const char *src);
 size_t strlcpy(char *d, const char *s, size_t n);
 size_t strlcat(char *d, const char *s, size_t n);
+char *strncat(char *d, const char *s, size_t n);
 size_t strnlen(const char *str, size_t maxlen);
 size_t strlen(const char *str);
 char *strchrnul(const char *s, int c);
@@ -65,6 +66,7 @@ int strcmp(const char *str1, const char *str2);
 size_t strcspn(const char *s, const char *c);
 size_t strspn(const char *s, const char *c);
 char *strtok(char *restrict s, const char *restrict sep);
+char *strtok_r(char *restrict str, const char *restrict sep, char **restrict last);
 char *strndup(const char *str, size_t len);
 char *strdup(const char *str);
 

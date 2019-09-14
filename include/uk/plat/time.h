@@ -52,6 +52,13 @@ __nsec ukplat_wall_clock(void);
 #define UKPLAT_TIME_TICK_NSEC  (UKARCH_NSEC_PER_SEC / CONFIG_HZ)
 #define UKPLAT_TIME_TICK_MSEC  ukarch_time_nsec_to_msec(UKPLAT_TIME_TICK_NSEC)
 
+struct uk_alloc;
+
+typedef void (*timer_callback_func_t)(void *);
+
+int ukplat_timer_callback_init(struct uk_alloc *a);
+int ukplat_timer_callback_register(timer_callback_func_t func, void *arg);
+
 #ifdef __cplusplus
 }
 #endif

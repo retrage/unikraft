@@ -348,6 +348,26 @@ size_t strlcat(char *d, const char *s, size_t n)
 	return l + strlcpy(d+l, s, n-l);
 }
 
+char *strncat(char *d, const char *s, size_t n)
+{
+	char *a = d;
+        d += strlen(d);
+        while (n && *s) n--, *d++ = *s++;
+        *d++ = 0;
+        return a;
+}
+
+char *strtok_r(char *restrict s, const char *restrict sep, char **restrict p)
+{
+	if (!s && !(s = *p)) return NULL;
+        s += strspn(s, sep);
+        if (!*s) return *p = 0;
+        *p = s + strcspn(s, sep);
+        if (**p) *(*p)++ = 0;
+        else *p = 0;
+        return s;
+}
+
 /* GNU-specific version of strerror_r */
 char *strerror_r(int errnum, char *buf, size_t buflen)
 {

@@ -62,6 +62,9 @@ extern FILE *stderr;
 #define va_list __builtin_va_list
 #endif
 
+int fputc(int, FILE *);
+int putchar(int);
+
 int vsnprintf(char *str, size_t size, const char *fmt, va_list ap);
 int  snprintf(char *str, size_t size, const char *fmt, ...) __printf(3, 4);
 

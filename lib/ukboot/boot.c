@@ -63,6 +63,9 @@
 #ifdef CONFIG_LIBUKLIBPARAM
 #include <uk/libparam.h>
 #endif /* CONFIG_LIBUKLIBPARAM */
+#if CONFIG_LIBLKL
+#include <lkl_host.h>
+#endif /* CONFIG_LIBLKL */
 
 int main(int argc, char *argv[]) __weak;
 #ifdef CONFIG_LIBLWIP
@@ -236,6 +239,10 @@ void ukplat_entry(int argc, char *argv[])
 	rc = ukplat_irq_init(a);
 	if (unlikely(rc != 0))
 		UK_CRASH("Could not initialize the platform IRQ subsystem\n");
+
+	rc = ukplat_timer_callback_init(a);
+        if (unlikely(rc != 0))
+        	UK_CRASH("Could not initialize timer callbacks\n");
 #endif
 
 	/* On most platforms the timer depend on an initialized IRQ subsystem */
@@ -249,8 +256,9 @@ void ukplat_entry(int argc, char *argv[])
 		UK_CRASH("Could not initialize the scheduler\n");
 #endif
 
-	tma.argc = argc - kern_args;
-	tma.argv = &argv[kern_args];
+#if CONFIG_LIBLKL
+        lkl_thread_init();
+#endif
 
 #if CONFIG_LIBUKSCHED
 	main_thread = uk_thread_create("main", main_thread_func, &tma);
